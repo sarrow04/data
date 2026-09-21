@@ -1,0 +1,942 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CSVクリーニング捜査ファイル</title>
+<style>
+  :root {
+    --navy-deep: #0a0e1a;
+    --navy: #10182b;
+    --navy-light: #1a2440;
+    --gold: #c9a24a;
+    --gold-dim: #8a7130;
+    --paper: #e8e4d8;
+    --paper-dim: #9aa0b4;
+    --red-tag: #a63d40;
+    --green-ok: #5b8c5a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--navy-deep);
+    background-image:
+      radial-gradient(circle at 20% 10%, rgba(201,162,74,0.05), transparent 40%),
+      radial-gradient(circle at 80% 90%, rgba(201,162,74,0.04), transparent 40%);
+    color: var(--paper);
+    font-family: 'Courier New', 'MS Gothic', monospace;
+    line-height: 1.6;
+    padding: 24px 16px 80px;
+  }
+  .wrap { max-width: 920px; margin: 0 auto; }
+
+  .case-header {
+    border: 1px solid var(--gold-dim);
+    padding: 18px 20px;
+    margin-bottom: 24px;
+    position: relative;
+    background: linear-gradient(180deg, rgba(201,162,74,0.06), transparent);
+  }
+  .case-number {
+    color: var(--gold);
+    font-size: 12px;
+    letter-spacing: 2px;
+    margin-bottom: 6px;
+  }
+  .case-title {
+    font-size: 22px;
+    color: var(--paper);
+    font-weight: bold;
+    margin: 0 0 8px;
+  }
+  .case-desc {
+    color: var(--paper-dim);
+    font-size: 13px;
+    margin: 0;
+  }
+
+  .section {
+    border: 1px solid #2a3450;
+    background: var(--navy);
+    margin-bottom: 18px;
+    padding: 16px 18px;
+  }
+  .section-title {
+    color: var(--gold);
+    font-size: 14px;
+    font-weight: bold;
+    margin: 0 0 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px dashed #2a3450;
+  }
+
+  .drop-zone {
+    border: 2px dashed #3a4568;
+    padding: 28px 16px;
+    text-align: center;
+    color: var(--paper-dim);
+    cursor: pointer;
+    transition: border-color .15s, color .15s;
+  }
+  .drop-zone.drag { border-color: var(--gold); color: var(--gold); }
+  .drop-zone input { display: none; }
+
+  textarea.paste-area {
+    width: 100%;
+    height: 90px;
+    background: var(--navy-deep);
+    border: 1px solid #2a3450;
+    color: var(--paper);
+    font-family: inherit;
+    font-size: 12px;
+    padding: 8px;
+    margin-top: 10px;
+    resize: vertical;
+  }
+  .or-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 12px 0 4px;
+    color: var(--paper-dim);
+    font-size: 12px;
+  }
+  .or-row::before, .or-row::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: #2a3450;
+  }
+
+  .file-meta {
+    margin-top: 10px;
+    font-size: 12px;
+    color: var(--green-ok);
+    display: none;
+  }
+
+  .column-card {
+    border: 1px solid #2a3450;
+    padding: 12px 14px;
+    margin-bottom: 10px;
+    background: var(--navy-light);
+  }
+  .column-card .row1 {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+  }
+  .tag {
+    font-size: 10px;
+    padding: 2px 6px;
+    border: 1px solid var(--gold-dim);
+    color: var(--gold);
+    letter-spacing: 1px;
+    white-space: nowrap;
+  }
+  .tag.missing { border-color: var(--red-tag); color: #d98a8c; }
+  label {
+    font-size: 11px;
+    color: var(--paper-dim);
+    display: block;
+    margin-bottom: 3px;
+  }
+  input[type=text], select {
+    background: var(--navy-deep);
+    border: 1px solid #3a4568;
+    color: var(--paper);
+    font-family: inherit;
+    font-size: 12px;
+    padding: 6px 8px;
+    width: 100%;
+  }
+  input[type=text]:focus, select:focus { outline: 1px solid var(--gold); border-color: var(--gold); }
+  .field { flex: 1; min-width: 140px; }
+  .grid2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .grid2 .field { min-width: 0; }
+  .checkline {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--paper);
+    margin-top: 6px;
+  }
+  .checkline input { accent-color: var(--gold); }
+
+  .btn {
+    background: var(--gold);
+    color: var(--navy-deep);
+    border: none;
+    font-family: inherit;
+    font-weight: bold;
+    font-size: 13px;
+    padding: 12px 20px;
+    cursor: pointer;
+    letter-spacing: 1px;
+  }
+  .btn:hover { background: #ddb85f; }
+  .btn:disabled { background: #4a4530; color: #8a8a70; cursor: not-allowed; }
+  .btn.secondary {
+    background: transparent;
+    color: var(--gold);
+    border: 1px solid var(--gold-dim);
+  }
+  .btn.secondary:hover { border-color: var(--gold); }
+
+  .action-row { display: flex; gap: 10px; flex-wrap: wrap; }
+
+  table.preview {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+    margin-top: 10px;
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+  table.preview th, table.preview td {
+    border: 1px solid #2a3450;
+    padding: 5px 8px;
+    text-align: left;
+  }
+  table.preview th { color: var(--gold); background: var(--navy-deep); }
+  table.preview td.empty-cell { color: var(--red-tag); font-style: italic; }
+
+  .stat-line {
+    font-size: 12px;
+    color: var(--paper-dim);
+    margin-top: 8px;
+  }
+  .stat-line b { color: var(--paper); }
+
+  .empty-note {
+    color: var(--paper-dim);
+    font-size: 12px;
+    text-align: center;
+    padding: 10px 0;
+  }
+
+  .overview-block { margin-bottom: 20px; }
+  .overview-block:last-child { margin-bottom: 0; }
+  .overview-subtitle {
+    font-size: 12px;
+    color: var(--paper-dim);
+    margin: 0 0 8px;
+    letter-spacing: 1px;
+  }
+
+  .missing-chart { display: flex; flex-direction: column; gap: 6px; }
+  .missing-row { display: flex; align-items: center; gap: 8px; font-size: 11px; }
+  .missing-label {
+    width: 140px;
+    flex-shrink: 0;
+    color: var(--paper);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .missing-bar-track {
+    flex: 1;
+    background: var(--navy-deep);
+    border: 1px solid #2a3450;
+    height: 14px;
+    position: relative;
+  }
+  .missing-bar-fill {
+    height: 100%;
+    background: var(--red-tag);
+  }
+  .missing-bar-fill.zero { background: #2a3450; }
+  .missing-count {
+    width: 90px;
+    flex-shrink: 0;
+    color: var(--paper-dim);
+    text-align: right;
+  }
+
+  .hist-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 14px;
+  }
+  .hist-card {
+    border: 1px solid #2a3450;
+    background: var(--navy-deep);
+    padding: 10px 12px;
+  }
+  .hist-card-title {
+    font-size: 11px;
+    color: var(--gold);
+    margin-bottom: 6px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .hist-bars {
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+    height: 70px;
+  }
+  .hist-bar {
+    flex: 1;
+    background: var(--gold);
+    min-height: 1px;
+  }
+  .hist-range {
+    display: flex;
+    justify-content: space-between;
+    font-size: 9px;
+    color: var(--paper-dim);
+    margin-top: 4px;
+  }
+
+  ::selection { background: var(--gold-dim); color: var(--navy-deep); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="case-header">
+    <div class="case-number">DATA DETECTIVE AGENCY — CASE FILE №PP-07</div>
+    <h1 class="case-title">CSVクリーニング捜査ファイル</h1>
+    <p class="case-desc">欠損値・不要文字を洗い出し、列名を整え、分析用データとして出力する。</p>
+  </div>
+
+  <div class="section" id="section-upload">
+    <div class="section-title">1. 証拠(CSV)の取り込み</div>
+    <div class="drop-zone" id="dropZone">
+      <div>ここにCSVファイルをドラッグ、またはクリックして選択</div>
+      <input type="file" id="fileInput" accept=".csv,text/csv">
+    </div>
+    <div class="or-row">または貼り付け</div>
+    <textarea class="paste-area" id="pasteArea" placeholder="CSVテキストをここに貼り付けてEnter/読み込みボタンで取り込み"></textarea>
+    <div class="action-row" style="margin-top:8px;">
+      <button class="btn secondary" id="loadPasteBtn">貼り付けたテキストを読み込む</button>
+    </div>
+    <div class="file-meta" id="fileMeta"></div>
+  </div>
+
+  <div class="section" id="section-overview" style="display:none;">
+    <div class="section-title">2. データ概要(取り込み直後の状態)</div>
+
+    <div class="overview-block">
+      <div class="overview-subtitle">■ 先頭5件</div>
+      <div id="headPreviewWrap"></div>
+    </div>
+
+    <div class="overview-block">
+      <div class="overview-subtitle">■ 列ごとの欠損値</div>
+      <div class="missing-chart" id="missingChart"></div>
+    </div>
+
+    <div class="overview-block" id="histBlock">
+      <div class="overview-subtitle">■ 数値列の分布(ヒストグラム)</div>
+      <div class="hist-grid" id="histGrid"></div>
+    </div>
+  </div>
+
+  <div class="section" id="section-columns" style="display:none;">
+    <div class="section-title">3. カラム捜査(列ごとの処理設定)</div>
+    <div id="columnCards"></div>
+  </div>
+
+  <div class="section" id="section-preview" style="display:none;">
+    <div class="section-title">4. 処理後プレビュー</div>
+    <div class="action-row">
+      <button class="btn" id="applyBtn">処理を実行</button>
+    </div>
+    <div class="stat-line" id="statLine"></div>
+    <div id="previewWrap"></div>
+  </div>
+
+  <div class="section" id="section-export" style="display:none;">
+    <div class="section-title">5. 証拠品(CSV)として出力</div>
+    <div class="action-row">
+      <button class="btn" id="downloadBtn">処理済みCSVをダウンロード</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+var MISSING_TOKENS = ['', 'na', 'n/a', 'null', 'nan', 'none', '-', '--', '欠損', '不明'];
+
+var state = {
+  headers: [],
+  rows: [],       // array of arrays (original)
+  colMeta: [],    // per column: {isNumeric:bool, missingCount:number}
+  processedHeaders: [],
+  processedRows: []
+};
+
+function isMissingToken(v) {
+  if (v === null || v === undefined) return true;
+  var t = String(v).trim().toLowerCase();
+  return MISSING_TOKENS.indexOf(t) !== -1;
+}
+
+// ---------- CSV parsing (RFC4180-ish) ----------
+function parseCSV(text) {
+  var rows = [];
+  var row = [];
+  var field = '';
+  var inQuotes = false;
+  var i = 0;
+  var len = text.length;
+
+  while (i < len) {
+    var c = text[i];
+
+    if (inQuotes) {
+      if (c === '"') {
+        if (text[i + 1] === '"') {
+          field += '"';
+          i += 2;
+          continue;
+        } else {
+          inQuotes = false;
+          i++;
+          continue;
+        }
+      } else {
+        field += c;
+        i++;
+        continue;
+      }
+    } else {
+      if (c === '"') {
+        inQuotes = true;
+        i++;
+        continue;
+      } else if (c === ',') {
+        row.push(field);
+        field = '';
+        i++;
+        continue;
+      } else if (c === '\r') {
+        i++;
+        continue;
+      } else if (c === '\n') {
+        row.push(field);
+        rows.push(row);
+        row = [];
+        field = '';
+        i++;
+        continue;
+      } else {
+        field += c;
+        i++;
+        continue;
+      }
+    }
+  }
+  row.push(field);
+  rows.push(row);
+
+  // drop trailing fully-empty rows
+  while (rows.length > 0) {
+    var last = rows[rows.length - 1];
+    if (last.length === 1 && last[0] === '') {
+      rows.pop();
+    } else {
+      break;
+    }
+  }
+  return rows;
+}
+
+function csvEscapeField(v) {
+  var s = (v === null || v === undefined) ? '' : String(v);
+  if (/[",\n\r]/.test(s)) {
+    s = '"' + s.replace(/"/g, '""') + '"';
+  }
+  return s;
+}
+
+function toCSV(headers, rows) {
+  var lines = [];
+  lines.push(headers.map(csvEscapeField).join(','));
+  for (var r = 0; r < rows.length; r++) {
+    lines.push(rows[r].map(csvEscapeField).join(','));
+  }
+  return lines.join('\r\n');
+}
+
+// ---------- loading ----------
+function loadText(text, sourceLabel) {
+  var parsed = parseCSV(text);
+  if (parsed.length === 0) {
+    alert('CSVを読み取れませんでした。');
+    return;
+  }
+  state.headers = parsed[0].map(function (h) { return h.trim(); });
+  state.rows = parsed.slice(1);
+
+  computeColumnMeta();
+  renderColumnCards();
+  renderOverview();
+
+  document.getElementById('fileMeta').style.display = 'block';
+  document.getElementById('fileMeta').textContent =
+    '取り込み完了: ' + sourceLabel + ' / 列数 ' + state.headers.length + ' / 行数 ' + state.rows.length;
+
+  document.getElementById('section-overview').style.display = 'block';
+  document.getElementById('section-columns').style.display = 'block';
+  document.getElementById('section-preview').style.display = 'block';
+  document.getElementById('section-export').style.display = 'none';
+  document.getElementById('previewWrap').innerHTML = '';
+  document.getElementById('statLine').textContent = '';
+}
+
+function computeColumnMeta() {
+  state.colMeta = state.headers.map(function (h, idx) {
+    var missingCount = 0;
+    var numericCount = 0;
+    var nonEmptyCount = 0;
+    for (var r = 0; r < state.rows.length; r++) {
+      var v = state.rows[r][idx];
+      if (isMissingToken(v)) {
+        missingCount++;
+      } else {
+        nonEmptyCount++;
+        var cleaned = String(v).trim().replace(/,/g, '');
+        if (cleaned !== '' && !isNaN(Number(cleaned))) {
+          numericCount++;
+        }
+      }
+    }
+    var isNumeric = nonEmptyCount > 0 && numericCount === nonEmptyCount;
+    return { missingCount: missingCount, isNumeric: isNumeric };
+  });
+}
+
+// ---------- overview (head / missing chart / histograms) ----------
+function renderOverview() {
+  renderHeadPreview();
+  renderMissingChart();
+  renderHistograms();
+}
+
+function renderHeadPreview() {
+  var wrap = document.getElementById('headPreviewWrap');
+  var sample = state.rows.slice(0, 5);
+
+  if (sample.length === 0) {
+    wrap.innerHTML = '<div class="empty-note">データがありません。</div>';
+    return;
+  }
+
+  var html = '<table class="preview"><thead><tr>';
+  state.headers.forEach(function (h) { html += '<th>' + escapeHtml(h) + '</th>'; });
+  html += '</tr></thead><tbody>';
+
+  sample.forEach(function (row) {
+    html += '<tr>';
+    state.headers.forEach(function (h, idx) {
+      var v = row[idx];
+      if (isMissingToken(v)) {
+        html += '<td class="empty-cell">(欠損)</td>';
+      } else {
+        html += '<td>' + escapeHtml(v) + '</td>';
+      }
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  wrap.innerHTML = html;
+}
+
+function renderMissingChart() {
+  var wrap = document.getElementById('missingChart');
+  var totalRows = state.rows.length;
+  var maxMissing = Math.max.apply(null, state.colMeta.map(function (m) { return m.missingCount; }).concat([1]));
+
+  var html = '';
+  state.headers.forEach(function (h, idx) {
+    var meta = state.colMeta[idx];
+    var pct = totalRows > 0 ? Math.round((meta.missingCount / totalRows) * 100) : 0;
+    var widthPct = Math.round((meta.missingCount / maxMissing) * 100);
+    var fillClass = meta.missingCount === 0 ? 'missing-bar-fill zero' : 'missing-bar-fill';
+    html +=
+      '<div class="missing-row">' +
+        '<div class="missing-label" title="' + escapeHtml(h) + '">' + escapeHtml(h) + '</div>' +
+        '<div class="missing-bar-track"><div class="' + fillClass + '" style="width:' + widthPct + '%;"></div></div>' +
+        '<div class="missing-count">' + meta.missingCount + '件 (' + pct + '%)</div>' +
+      '</div>';
+  });
+  wrap.innerHTML = html;
+}
+
+function computeHistogramBins(values, binCount) {
+  var nums = values.map(Number).filter(function (n) { return !isNaN(n); });
+  if (nums.length === 0) return null;
+
+  var min = Math.min.apply(null, nums);
+  var max = Math.max.apply(null, nums);
+  if (min === max) {
+    return { bins: [nums.length], min: min, max: max };
+  }
+
+  var bins = new Array(binCount).fill(0);
+  var range = max - min;
+  nums.forEach(function (n) {
+    var b = Math.floor(((n - min) / range) * binCount);
+    if (b >= binCount) b = binCount - 1;
+    if (b < 0) b = 0;
+    bins[b]++;
+  });
+  return { bins: bins, min: min, max: max };
+}
+
+function renderHistograms() {
+  var grid = document.getElementById('histGrid');
+  var histBlock = document.getElementById('histBlock');
+  grid.innerHTML = '';
+
+  var numericIdx = [];
+  state.colMeta.forEach(function (m, idx) { if (m.isNumeric) numericIdx.push(idx); });
+
+  if (numericIdx.length === 0) {
+    histBlock.style.display = 'none';
+    return;
+  }
+  histBlock.style.display = 'block';
+
+  numericIdx.forEach(function (idx) {
+    var values = state.rows
+      .map(function (row) { return row[idx]; })
+      .filter(function (v) { return !isMissingToken(v); });
+
+    var hist = computeHistogramBins(values, 12);
+    if (!hist) return;
+
+    var maxBin = Math.max.apply(null, hist.bins.concat([1]));
+    var barsHtml = hist.bins.map(function (count) {
+      var h = Math.round((count / maxBin) * 100);
+      return '<div class="hist-bar" style="height:' + h + '%;" title="' + count + '件"></div>';
+    }).join('');
+
+    var card = document.createElement('div');
+    card.className = 'hist-card';
+    card.innerHTML =
+      '<div class="hist-card-title" title="' + escapeHtml(state.headers[idx]) + '">' + escapeHtml(state.headers[idx]) + '</div>' +
+      '<div class="hist-bars">' + barsHtml + '</div>' +
+      '<div class="hist-range"><span>' + formatNum(hist.min) + '</span><span>' + formatNum(hist.max) + '</span></div>';
+    grid.appendChild(card);
+  });
+}
+
+function formatNum(n) {
+  if (Math.abs(n) >= 1000) return Math.round(n).toLocaleString();
+  return String(Math.round(n * 100) / 100);
+}
+
+// ---------- column UI ----------
+function renderColumnCards() {
+  var container = document.getElementById('columnCards');
+  container.innerHTML = '';
+
+  state.headers.forEach(function (h, idx) {
+    var meta = state.colMeta[idx];
+    var card = document.createElement('div');
+    card.className = 'column-card';
+    card.setAttribute('data-col-idx', idx);
+
+    var missingTag = meta.missingCount > 0
+      ? '<span class="tag missing">欠損 ' + meta.missingCount + '件</span>'
+      : '<span class="tag">欠損 0件</span>';
+    var typeTag = '<span class="tag">' + (meta.isNumeric ? '数値列' : '文字列列') + '</span>';
+
+    var missingOptions = '<option value="none">そのままにする</option>' +
+      '<option value="drop_row">欠損を含む行を削除</option>' +
+      '<option value="fill_value">指定値で埋める</option>';
+    if (meta.isNumeric) {
+      missingOptions += '<option value="fill_mean">平均値で埋める</option>' +
+        '<option value="fill_median">中央値で埋める</option>';
+    }
+    missingOptions += '<option value="fill_mode">最頻値で埋める</option>';
+
+    card.innerHTML =
+      '<div class="row1">' +
+        '<div class="field" style="max-width:260px;">' +
+          '<label>元の列名: ' + escapeHtml(h) + '</label>' +
+          '<input type="text" class="rename-input" value="' + escapeHtml(h) + '">' +
+        '</div>' +
+        missingTag + typeTag +
+      '</div>' +
+      '<div class="grid2">' +
+        '<div class="field">' +
+          '<label>欠損値の処理</label>' +
+          '<select class="missing-select">' + missingOptions + '</select>' +
+          '<input type="text" class="missing-fill-value" placeholder="埋める値を入力" style="display:none;margin-top:6px;">' +
+        '</div>' +
+        '<div class="field">' +
+          '<label>不要文字の除去(カンマ区切りで複数指定可, 例: 円,%,km)</label>' +
+          '<input type="text" class="strip-chars" placeholder="例: 円,%,人">' +
+        '</div>' +
+      '</div>' +
+      '<div class="grid2" style="margin-top:8px;">' +
+        '<div class="field">' +
+          '<label>大文字・小文字/全角半角</label>' +
+          '<select class="case-select">' +
+            '<option value="none">変更しない</option>' +
+            '<option value="upper">半角英大文字に統一</option>' +
+            '<option value="lower">半角英小文字に統一</option>' +
+          '</select>' +
+        '</div>' +
+        '<div class="field" style="display:flex; align-items:flex-end; gap:14px;">' +
+          '<div class="checkline"><input type="checkbox" class="trim-check" checked> 前後の空白を除去</div>' +
+          '<div class="checkline"><input type="checkbox" class="numeric-only-check"> 数字以外を除去(数値列用)</div>' +
+        '</div>' +
+      '</div>';
+
+    container.appendChild(card);
+
+    var missingSelect = card.querySelector('.missing-select');
+    var fillInput = card.querySelector('.missing-fill-value');
+    missingSelect.addEventListener('change', function () {
+      fillInput.style.display = (missingSelect.value === 'fill_value') ? 'block' : 'none';
+    });
+  });
+}
+
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+// ---------- processing ----------
+function computeStat(values, kind) {
+  var nums = values.map(Number).filter(function (n) { return !isNaN(n); });
+  if (nums.length === 0) return '';
+  if (kind === 'mean') {
+    var sum = nums.reduce(function (a, b) { return a + b; }, 0);
+    return String(sum / nums.length);
+  }
+  if (kind === 'median') {
+    var sorted = nums.slice().sort(function (a, b) { return a - b; });
+    var mid = Math.floor(sorted.length / 2);
+    if (sorted.length % 2 === 0) return String((sorted[mid - 1] + sorted[mid]) / 2);
+    return String(sorted[mid]);
+  }
+  return '';
+}
+
+function computeMode(values) {
+  var counts = {};
+  var best = '';
+  var bestCount = -1;
+  values.forEach(function (v) {
+    if (v === '' || v === null || v === undefined) return;
+    counts[v] = (counts[v] || 0) + 1;
+    if (counts[v] > bestCount) {
+      bestCount = counts[v];
+      best = v;
+    }
+  });
+  return best;
+}
+
+function applyProcessing() {
+  var cards = document.querySelectorAll('.column-card');
+  var colConfigs = [];
+
+  cards.forEach(function (card) {
+    var idx = parseInt(card.getAttribute('data-col-idx'), 10);
+    colConfigs[idx] = {
+      newName: card.querySelector('.rename-input').value.trim() || state.headers[idx],
+      missingMode: card.querySelector('.missing-select').value,
+      missingFillValue: card.querySelector('.missing-fill-value').value,
+      stripChars: card.querySelector('.strip-chars').value
+        .split(',').map(function (s) { return s.trim(); }).filter(function (s) { return s !== ''; }),
+      caseMode: card.querySelector('.case-select').value,
+      trim: card.querySelector('.trim-check').checked,
+      numericOnly: card.querySelector('.numeric-only-check').checked
+    };
+  });
+
+  // Step 1: string cleaning per cell (independent of missing handling)
+  var cleanedRows = state.rows.map(function (row) {
+    return row.map(function (v, idx) {
+      var cfg = colConfigs[idx];
+      if (!cfg) return v;
+      if (isMissingToken(v)) return ''; // normalize missing to empty string for now
+
+      var s = String(v);
+      if (cfg.trim) s = s.trim();
+      cfg.stripChars.forEach(function (ch) {
+        if (ch === '') return;
+        s = s.split(ch).join('');
+      });
+      if (cfg.caseMode === 'upper') s = s.toUpperCase();
+      if (cfg.caseMode === 'lower') s = s.toLowerCase();
+      if (cfg.numericOnly) s = s.replace(/[^0-9.\-]/g, '');
+      if (cfg.trim) s = s.trim();
+      return s;
+    });
+  });
+
+  // Step 2: compute fill values per column (based on cleaned, non-missing values)
+  var fillValues = colConfigs.map(function (cfg, idx) {
+    if (!cfg) return '';
+    var colValues = cleanedRows.map(function (r) { return r[idx]; }).filter(function (v) { return v !== ''; });
+    if (cfg.missingMode === 'fill_mean') return computeStat(colValues, 'mean');
+    if (cfg.missingMode === 'fill_median') return computeStat(colValues, 'median');
+    if (cfg.missingMode === 'fill_mode') return computeMode(colValues);
+    if (cfg.missingMode === 'fill_value') return cfg.missingFillValue;
+    return '';
+  });
+
+  // Step 3: apply missing handling, and mark rows to drop
+  var outputRows = [];
+  var filledCount = 0;
+  var droppedCount = 0;
+
+  cleanedRows.forEach(function (row) {
+    var dropThisRow = false;
+    var newRow = row.slice();
+
+    for (var idx = 0; idx < colConfigs.length; idx++) {
+      var cfg = colConfigs[idx];
+      if (!cfg) continue;
+      if (newRow[idx] === '') {
+        if (cfg.missingMode === 'drop_row') {
+          dropThisRow = true;
+          break;
+        } else if (cfg.missingMode === 'fill_value' || cfg.missingMode === 'fill_mean' ||
+                   cfg.missingMode === 'fill_median' || cfg.missingMode === 'fill_mode') {
+          newRow[idx] = fillValues[idx];
+          filledCount++;
+        }
+        // 'none' -> leave empty
+      }
+    }
+
+    if (dropThisRow) {
+      droppedCount++;
+    } else {
+      outputRows.push(newRow);
+    }
+  });
+
+  state.processedHeaders = colConfigs.map(function (cfg) { return cfg.newName; });
+  state.processedRows = outputRows;
+
+  document.getElementById('statLine').innerHTML =
+    '処理完了: <b>' + state.rows.length + '</b>行 → <b>' + outputRows.length + '</b>行 ' +
+    '(削除 ' + droppedCount + '行 / 補完 ' + filledCount + '箇所)';
+
+  renderPreview();
+  document.getElementById('section-export').style.display = 'block';
+}
+
+function renderPreview() {
+  var wrap = document.getElementById('previewWrap');
+  var headers = state.processedHeaders;
+  var rows = state.processedRows.slice(0, 15);
+
+  if (rows.length === 0) {
+    wrap.innerHTML = '<div class="empty-note">出力対象の行がありません。</div>';
+    return;
+  }
+
+  var html = '<table class="preview"><thead><tr>';
+  headers.forEach(function (h) { html += '<th>' + escapeHtml(h) + '</th>'; });
+  html += '</tr></thead><tbody>';
+
+  rows.forEach(function (row) {
+    html += '<tr>';
+    row.forEach(function (v) {
+      if (v === '') {
+        html += '<td class="empty-cell">(空)</td>';
+      } else {
+        html += '<td>' + escapeHtml(v) + '</td>';
+      }
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+
+  if (state.processedRows.length > 15) {
+    html += '<div class="stat-line">※ プレビューは先頭15行のみ表示(全' + state.processedRows.length + '行を出力)</div>';
+  }
+
+  wrap.innerHTML = html;
+}
+
+function downloadCSV() {
+  if (state.processedRows.length === 0 && state.processedHeaders.length === 0) {
+    alert('先に「処理を実行」してください。');
+    return;
+  }
+  var csv = toCSV(state.processedHeaders, state.processedRows);
+  var bom = '\uFEFF'; // Excel向けBOM付きUTF-8
+  var blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = 'cleaned_' + new Date().toISOString().slice(0, 10) + '.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// ---------- events ----------
+var dropZone = document.getElementById('dropZone');
+var fileInput = document.getElementById('fileInput');
+
+dropZone.addEventListener('click', function () { fileInput.click(); });
+
+dropZone.addEventListener('dragover', function (e) {
+  e.preventDefault();
+  dropZone.classList.add('drag');
+});
+dropZone.addEventListener('dragleave', function () {
+  dropZone.classList.remove('drag');
+});
+dropZone.addEventListener('drop', function (e) {
+  e.preventDefault();
+  dropZone.classList.remove('drag');
+  var file = e.dataTransfer.files[0];
+  if (file) readFile(file);
+});
+
+fileInput.addEventListener('change', function () {
+  var file = fileInput.files[0];
+  if (file) readFile(file);
+});
+
+function readFile(file) {
+  var reader = new FileReader();
+  reader.onload = function (e) {
+    loadText(e.target.result, file.name);
+  };
+  reader.readAsText(file, 'UTF-8');
+}
+
+document.getElementById('loadPasteBtn').addEventListener('click', function () {
+  var text = document.getElementById('pasteArea').value;
+  if (text.trim() === '') {
+    alert('CSVテキストを貼り付けてください。');
+    return;
+  }
+  loadText(text, '貼り付けテキスト');
+});
+
+document.getElementById('applyBtn').addEventListener('click', applyProcessing);
+document.getElementById('downloadBtn').addEventListener('click', downloadCSV);
+</script>
+</body>
+</html>
